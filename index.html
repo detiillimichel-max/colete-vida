@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>🏝️ Ilha da Sobrevivência</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Lato:wght@400;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:#0a1628;font-family:'Lato',sans-serif;color:#f0ead2;overflow:hidden;height:100vh;display:flex;flex-direction:column;}
+
+/* ── HUD ── */
+#hud{
+  background:linear-gradient(90deg,#0d1f0d,#0d1a2a,#0d1f0d);
+  border-bottom:2px solid #4a7c3f;
+  padding:6px 10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  z-index:10;flex-shrink:0;
+}
+.hstat{display:flex;align-items:center;gap:4px;background:#00000044;border:1px solid #ffffff18;border-radius:12px;padding:3px 8px;font-size:0.72rem;}
+.hbar{width:50px;height:7px;background:#ffffff22;border-radius:3px;overflow:hidden;}
+.hfill{height:100%;border-radius:3px;transition:width .4s;}
+.fhp{background:linear-gradient(90deg,#e74c3c,#ff6b6b);}
+.ffood{background:linear-gradient(90deg,#f39c12,#ffcc44);}
+.fwater{background:linear-gradient(90deg,#3498db,#74c0fc);}
+#hud-day{margin-left:auto;font-family:'Press Start 2P',monospace;font-size:0.55rem;color:#e8c97a;white-space:nowrap;}
+
+/* ── CANVAS PRINCIPAL ── */
+#game-wrap{position:relative;flex:1;overflow:hidden;}
+#gc{display:block;width:100%;height:100%;cursor:pointer;}
+
+/* ── PAINEL INFERIOR ── */
+#bottom{
+  background:linear-gradient(180deg,#0d1a0d,#071007);
+  border-top:2px solid #4a7c3f;
+  flex-shrink:0;
+  display:flex;flex-direction:column;
+}
+#tabs{display:flex;border-bottom:1px solid #4a7c3f44;}
+.tbtn{flex:1;padding:7px 4px;background:transparent;border:none;color:#7a9a7a;
+  font-size:0.65rem;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:1px;}
+.tbtn .ti{font-size:1rem;}
+.tbtn.on{color:#e8c97a;border-bottom:2px solid #e8c97a;background:#ffffff08;}
+.tpanel{display:none;padding:8px 10px;overflow-y:auto;max-height:200px;}
+.tpanel.on{display:block;}
+
+/* recursos rápidos */
+.rq-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;}
+.rq-item{background:#ffffff0a;border:1px solid #ffffff18;border-radius:6px;padding:6px 4px;text-align:center;}
+.rq-item .ri{font-size:1.2rem;}
+.rq-item .rn{font-size:0.6rem;color:#aaa;margin-top:1px;}
+.rq-item .rv{font-size:0.9rem;font-weight:700;color:#e8c97a;}
+
+/* botões de ação */
+.ag{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;}
+.abtn{background:linear-gradient(135deg,#1a3a1a,#1a2a3a);border:1px solid #4a7c3f;
+  border-radius:8px;color:#f0ead2;padding:10px 8px;cursor:pointer;font-size:0.78rem;
+  text-align:center;transition:all .15s;position:relative;}
+.abtn:active{transform:scale(.96);}
+.abtn .ai{font-size:1.1rem;display:block;margin-bottom:3px;}
+.abtn .ac{font-size:0.6rem;color:#8a9;display:block;margin-top:2px;}
+.abtn .acost{position:absolute;top:3px;right:5px;font-size:0.55rem;color:#f8c;background:#00000055;border-radius:3px;padding:1px 3px;}
+.abtn.locked{opacity:.4;cursor:not-allowed;}
+
+/* construção e barco */
+.blist{display:flex;flex-direction:column;gap:6px;}
+.bitem{background:#ffffff08;border:1px solid #ffffff18;border-radius:8px;padding:8px;display:flex;align-items:center;gap:8px;}
+.bitem .bi{font-size:1.6rem;flex-shrink:0;}
+.bitem .bd{flex:1;}
+.bitem .bn{font-size:0.8rem;font-weight:700;color:#e8c97a;}
+.bitem .bb{font-size:0.65rem;color:#aaa;margin-top:2px;}
+.bitem .bbuilt{font-size:0.65rem;color:#8f8;margin-top:2px;}
+.btn-b{background:#2d5a27;border:1px solid #4a7c3f;color:#f0ead2;border-radius:6px;
+  padding:5px 8px;font-size:0.68rem;cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0;}
+.btn-b:disabled{opacity:.4;cursor:not-allowed;}
+.btn-b:hover:not(:disabled){background:#3d7a35;}
+
+/* BARCO especial */
+.boat-item{border-color:#e8c97a44;background:linear-gradient(135deg,#1a1a00,#0d2a0d);}
+.boat-item .bn{color:#e8c97a;font-size:0.9rem;}
+
+/* log */
+#log{height:55px;overflow-y:auto;padding:4px 10px;font-size:0.7rem;color:#aac;border-top:1px solid #ffffff11;}
+.ll{padding:1px 0;}.le{color:#e8c97a;}.ld{color:#f88;}.ls{color:#8f8;}.li{color:#8cf;}
+#log::-webkit-scrollbar{width:3px;}
+#log::-webkit-scrollbar-thumb{background:#4a7c3f;border-radius:2px;}
+
+/* notif */
+#notif{position:fixed;top:54px;left:50%;transform:translateX(-50%);
+  background:#111e;color:#e8c97a;padding:8px 18px;border:1px solid #e8c97a66;
+  border-radius:8px;font-size:0.78rem;z-index:999;opacity:0;transition:opacity .3s;
+  pointer-events:none;max-width:88vw;text-align:center;}
+#notif.show{opacity:1;}
+
+/* MODAL */
+#modal{display:none;position:fixed;inset:0;background:#000c;z-index:2000;align-items:center;justify-content:center;}
+#modal.show{display:flex;}
+.mbox{background:linear-gradient(135deg,#0d1a0d,#0d1a2a);border:2px solid #e8c97a;
+  border-radius:14px;padding:28px 22px;text-align:center;max-width:300px;width:90%;}
+.mbox h2{font-family:'Press Start 2P',monospace;font-size:1rem;color:#e8c97a;margin-bottom:12px;line-height:1.6;}
+.mbox p{font-size:0.82rem;color:#aac;margin-bottom:20px;line-height:1.6;}
+.mbtn{background:#2d5a27;border:1px solid #4a7c3f;color:#f0ead2;padding:12px 26px;
+  border-radius:8px;cursor:pointer;font-family:'Press Start 2P',monospace;font-size:0.6rem;line-height:1.6;}
+.mbtn:hover{background:#3d7a35;}
+
+/* TELA INICIAL */
+#screen-start{position:fixed;inset:0;background:linear-gradient(180deg,#050f1a,#0d2a1a,#1a4a2a);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:3000;text-align:center;padding:20px;}
+#screen-start h1{font-family:'Press Start 2P',monospace;font-size:clamp(0.9rem,5vw,1.6rem);
+  color:#e8c97a;text-shadow:0 0 30px #e8c97a66;line-height:1.7;margin-bottom:10px;}
+#screen-start p{font-size:0.82rem;color:#8ac;max-width:280px;margin:0 auto 24px;line-height:1.7;}
+.sbtn{background:linear-gradient(135deg,#2d5a27,#1a3a5a);border:2px solid #e8c97a;
+  color:#e8c97a;font-family:'Press Start 2P',monospace;font-size:0.7rem;
+  padding:14px 28px;border-radius:8px;cursor:pointer;line-height:1.6;
+  box-shadow:0 0 20px #e8c97a33;transition:all .2s;}
+.sbtn:hover{transform:scale(1.06);box-shadow:0 0 30px #e8c97a66;}
+.story{font-size:0.72rem;color:#6a8a6a;margin-top:18px;line-height:1.8;max-width:280px;}
+</style>
+</head>
+<body>
+
+<!-- TELA INICIAL -->
+<div id="screen-start">
+  <div style="font-size:3rem;margin-bottom:14px;animation:bob 2s ease-in-out infinite">🏝️</div>
+  <h1>ILHA DA<br>SOBREVIVÊNCIA</h1>
+  <p>Você naufragou. Só o Jojo e a ilha selvagem.</p>
+  <button class="sbtn" onclick="startGame()">▶ COMEÇAR</button>
+  <div class="story">
+    🌊 Colete recursos clicando na ilha<br>
+    🏠 Construa abrigo para sobreviver<br>
+    ⚒️ Fabrique ferramentas<br>
+    ⛵ Construa um barco e escape!
+  </div>
+</div>
+<style>@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}</style>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hstat">❤️<div class="hbar"><div class="hfill fhp" id="bhp" style="width:100%"></div></div><span id="vhp">100</span></div>
+  <div class="hstat">🍖<div class="hbar"><div class="hfill ffood" id="bfood" style="width:100%"></div></div><span id="vfood">100</span></div>
+  <div class="hstat">💧<div class="hbar"><div class="hfill fwater" id="bwater" style="width:100%"></div></div><span id="vwater">100</span></div>
+  <div id="hud-day">DIA <span id="vday">1</span></div>
+</div>
+
+<!-- CANVAS -->
+<div id="game-wrap">
+  <canvas id="gc"></canvas>
+</div>
+
+<!-- BOTTOM -->
+<div id="bottom">
+  <div id="tabs">
+    <button class="tbtn on" id="tab-recursos" onclick="openTab('recursos')"><span class="ti">🎒</span>Mochila</button>
+    <button class="tbtn" id="tab-acoes" onclick="openTab('acoes')"><span class="ti">⚡</span>Ações</button>
+    <button class="tbtn" id="tab-construir" onclick="openTab('construir')"><span class="ti">🔨</span>Construir</button>
+    <button class="tbtn" id="tab-barco" onclick="openTab('barco')"><span class="ti">⛵</span>Barco</button>
+  </div>
+  <div class="tpanel on" id="panel-recursos">
+    <div class="rq-grid" id="rq-grid"></div>
+  </div>
+  <div class="tpanel" id="panel-acoes">
+    <div class="ag" id="ag"></div>
+  </div>
+  <div class="tpanel" id="panel-construir">
+    <div class="blist" id="blist"></div>
+  </div>
+  <div class="tpanel" id="panel-barco">
+    <div class="blist" id="boat-list"></div>
+  </div>
+  <div id="log"></div>
+</div>
+
+<div id="notif"></div>
+<div id="modal">
+  <div class="mbox">
+    <h2 id="mt">GAME<br>OVER</h2>
+    <p id="mm">A ilha venceu você.</p>
+    <button class="mbtn" onclick="restartGame()">↺ TENTAR<br>DE NOVO</button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+//  ESTADO
+// ══════════════════════════════════════════════
+let G, ticker, notifTmr;
+
+function newState() {
+  return {
+    day:1, hour:8,
+    hp:100, food:100, water:100,
+    madeira:0, pedra:0, fruta:0, agua:0, fibra:0, osso:0, peixe:0,
+    construcoes:{ acampamento:false, fogueira:false, abrigo:false, oficina:false },
+    ferramentas:{ machado:false, picareta:false, arco:false },
+    barcoPartes:{ casco:false, remo:false, vela:false },
+    jojo:{ x:0, y:0, dir:1, walking:false, wx:0, wy:0, speed:2, frame:0 },
+    recursos:[],  // objetos na ilha para coletar
+    particles:[],
+    spawnTimer:0,
+    canvasW:400, canvasH:300,
+  };
+}
+
+// ══════════════════════════════════════════════
+//  CANVAS SETUP
+// ══════════════════════════════════════════════
+const canvas = document.getElementById('gc');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const wrap = document.getElementById('game-wrap');
+  canvas.width = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
+  if (G) { G.canvasW = canvas.width; G.canvasH = canvas.height; }
+}
+window.addEventListener('resize', ()=>{ resizeCanvas(); if(G) placeJojo(); });
+
+// ══════════════════════════════════════════════
+//  INICIALIZAR
+// ══════════════════════════════════════════════
+function startGame() {
+  document.getElementById('screen-start').style.display = 'none';
+  resizeCanvas();
+  G = newState();
+  G.canvasW = canvas.width; G.canvasH = canvas.height;
+  placeJojo();
+  spawnRecursos();
+  spawnRecursos();
+  renderBottom();
+  startTicker();
+  addLog('🌊 O Jojo acorda na praia após o naufrágio!','le');
+  addLog('Clique nos recursos na ilha para coletar!','li');
+  requestAnimationFrame(loop);
+}
+
+function restartGame() {
+  clearInterval(ticker);
+  document.getElementById('modal').classList.remove('show');
+  G = newState();
+  G.canvasW = canvas.width; G.canvasH = canvas.height;
+  placeJojo(); spawnRecursos(); spawnRecursos();
+  renderBottom(); startTicker();
+  addLog('🌊 Nova tentativa — o Jojo tenta de novo!','le');
+  requestAnimationFrame(loop);
+}
+
+function placeJojo() {
+  const W = canvas.width, H = canvas.height;
+  G.jojo.x = W / 2; G.jojo.y = H * 0.72;
+  G.jojo.wx = G.jojo.x; G.jojo.wy = G.jojo.y;
+}
+
+// ══════════════════════════════════════════════
+//  TICKER (tempo do jogo)
+// ══════════════════════════════════════════════
+function startTicker() {
+  ticker = setInterval(() => {
+    G.hour++;
+    if (G.hour >= 24) { G.hour = 6; G.day++; addLog(`☀️ Dia ${G.day}.`, 'le'); }
+    G.food = Math.max(0, G.food - 2);
+    G.water = Math.max(0, G.water - 3);
+    if (G.food === 0)  { G.hp = Math.max(0, G.hp - 6);  addLog('⚠️ Jojo está com fome!','ld'); }
+    if (G.water === 0) { G.hp = Math.max(0, G.hp - 9);  addLog('⚠️ Jojo está desidratado!','ld'); }
+    const noite = G.hour >= 20 || G.hour < 6;
+    if (noite && !G.construcoes.fogueira && !G.construcoes.abrigo) {
+      if (Math.random() < 0.35) {
+        const d = rng(6,16); G.hp = Math.max(0, G.hp - d);
+        addLog(`🐗 Animal atacou o Jojo! -${d} HP`, 'ld');
+      }
+    }
+    if (G.construcoes.abrigo && G.food > 10 && G.water > 10)
+      G.hp = Math.min(100, G.hp + 2);
+    if (G.hp <= 0) { gameover(); return; }
+    G.spawnTimer++;
+    if (G.spawnTimer >= 3) { spawnRecurso(); G.spawnTimer = 0; }
+    updateHUD(); renderAcoes();
+  }, 7000);
+}
+
+// ══════════════════════════════════════════════
+//  RECURSOS NA ILHA (objetos clicáveis)
+// ══════════════════════════════════════════════
+const RTYPES = [
+  { id:'madeira', emoji:'🪵', label:'Madeira', zona:'floresta', min:2, max:5 },
+  { id:'pedra',   emoji:'🪨', label:'Pedra',   zona:'praia',   min:1, max:4 },
+  { id:'fruta',   emoji:'🍌', label:'Fruta',   zona:'floresta',min:2, max:5 },
+  { id:'agua',    emoji:'💧', label:'Água',    zona:'praia',   min:2, max:5 },
+  { id:'fibra',   emoji:'🌿', label:'Fibra',   zona:'praia',   min:2, max:4 },
+  { id:'osso',    emoji:'🦴', label:'Osso',    zona:'floresta',min:1, max:3 },
+  { id:'peixe',   emoji:'🐟', label:'Peixe',   zona:'praia',   min:2, max:5 },
+];
+
+function randPos(zona) {
+  const W = canvas.width, H = canvas.height;
+  if (zona === 'praia') {
+    return { x: rng(W*0.08, W*0.92), y: rng(H*0.70, H*0.92) };
+  } else {
+    return { x: rng(W*0.05, W*0.95), y: rng(H*0.28, H*0.62) };
+  }
+}
+
+function spawnRecurso() {
+  if (G.recursos.length >= 14) return;
+  const t = RTYPES[rng(0, RTYPES.length-1)];
+  const pos = randPos(t.zona);
+  G.recursos.push({ ...t, ...pos, id2: Math.random(), scale: 0, qty: rng(t.min, t.max) });
+}
+
+function spawnRecursos() {
+  for (let i=0; i<8; i++) spawnRecurso();
+}
+
+// ══════════════════════════════════════════════
+//  LOOP DE ANIMAÇÃO
+// ══════════════════════════════════════════════
+let lastTime = 0;
+function loop(ts) {
+  requestAnimationFrame(loop);
+  const dt = Math.min((ts - lastTime) / 1000, 0.1);
+  lastTime = ts;
+  update(dt, ts);
+  draw(ts);
+}
+
+function update(dt, ts) {
+  if (!G) return;
+  const j = G.jojo;
+  // mover Jojo em direção ao destino
+  const dx = j.wx - j.x, dy = j.wy - j.y;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  if (dist > 4) {
+    j.walking = true;
+    j.dir = dx > 0 ? 1 : -1;
+    j.x += (dx / dist) * 80 * dt;
+    j.y += (dy / dist) * 80 * dt;
+    j.frame = Math.floor(ts / 180) % 4;
+  } else {
+    j.walking = false;
+    j.x = j.wx; j.y = j.wy;
+    // checar chegada perto de recurso
+    checkCollect();
+  }
+  // grow recursos
+  G.recursos.forEach(r => { if (r.scale < 1) r.scale = Math.min(1, r.scale + dt*3); });
+  // partículas
+  G.particles = G.particles.filter(p => {
+    p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 120 * dt;
+    p.life -= dt; p.alpha = Math.max(0, p.life / p.maxLife);
+    return p.life > 0;
+  });
+}
+
+function checkCollect() {
+  if (!G._targetRes) return;
+  const r = G.recursos.find(x => x.id2 === G._targetRes);
+  if (!r) { G._targetRes = null; return; }
+  const dx = r.x - G.jojo.x, dy = r.y - G.jojo.y;
+  if (Math.sqrt(dx*dx + dy*dy) < 32) {
+    doCollect(r);
+    G._targetRes = null;
+  }
+}
+
+function doCollect(r) {
+  const boost = (r.id === 'madeira' && G.ferramentas.machado) ? 2
+              : (r.id === 'pedra'   && G.ferramentas.picareta) ? 2
+              : (r.id === 'osso'    && G.ferramentas.arco) ? 2 : 1;
+  const qty = r.qty * boost;
+  G[r.id] += qty;
+  // se fruta ou peixe → é comida
+  if (r.id === 'fruta' || r.id === 'peixe') G.food = Math.min(100, G.food + qty * 4);
+  if (r.id === 'agua')  G.water = Math.min(100, G.water + qty * 4);
+  addLog(`+${qty} ${r.label}${boost>1?' (bônus ferramenta!)':''}`, 'ls');
+  // partícula
+  for (let i=0;i<8;i++) spawnParticle(r.x, r.y, r.emoji);
+  G.recursos = G.recursos.filter(x => x.id2 !== r.id2);
+  spawnRecurso();
+  updateHUD(); renderRecursos(); renderAcoes();
+}
+
+function spawnParticle(x, y, txt) {
+  G.particles.push({
+    x, y, txt,
+    vx: (Math.random()-0.5)*60,
+    vy: -(Math.random()*60+30),
+    life: 0.8, maxLife: 0.8, alpha: 1
+  });
+}
+
+// ══════════════════════════════════════════════
+//  DESENHO
+// ══════════════════════════════════════════════
+function draw(ts) {
+  if (!G) return;
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const noite = G.hour >= 20 || G.hour < 6;
+  const tarde = G.hour >= 17 && G.hour < 20;
+
+  // CÉU
+  const sky = ctx.createLinearGradient(0,0,0,H*0.55);
+  if (noite) { sky.addColorStop(0,'#020810'); sky.addColorStop(1,'#0a1a30'); }
+  else if (tarde) { sky.addColorStop(0,'#1a0a30'); sky.addColorStop(1,'#c0502a'); }
+  else { sky.addColorStop(0,'#0a4a8a'); sky.addColorStop(1,'#7ec8f0'); }
+  ctx.fillStyle = sky; ctx.fillRect(0,0,W,H*0.55);
+
+  // ASTRO
+  if (noite) {
+    // estrelas
+    ctx.fillStyle='#ffffff';
+    for(let i=0;i<40;i++){
+      const sx=((i*137.5)%W), sy=((i*97.3)%(H*0.45));
+      const br = 0.4+0.6*Math.sin(ts/800+i);
+      ctx.globalAlpha=br*0.9; ctx.beginPath();
+      ctx.arc(sx,sy,0.8+i%2*0.6,0,Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    ctx.fillStyle='#dde8ff'; ctx.beginPath(); ctx.arc(W*0.8,H*0.1,14,0,Math.PI*2); ctx.fill();
+  } else {
+    const sunX = W*0.15 + (W*0.7)*((G.hour-6)/16);
+    ctx.save(); ctx.shadowBlur=28; ctx.shadowColor='#ffe56699';
+    ctx.fillStyle='#ffe566'; ctx.beginPath(); ctx.arc(sunX, H*0.12, 18, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  // NUVENS
+  drawNuvens(ts, W, H);
+
+  // OCEANO (fundo)
+  const ocGrad = ctx.createLinearGradient(0, H*0.50, 0, H*0.65);
+  ocGrad.addColorStop(0, noite ? '#062030':'#1a8aaa');
+  ocGrad.addColorStop(1, noite ? '#030f18':'#0d3d52');
+  ctx.fillStyle = ocGrad; ctx.fillRect(0, H*0.50, W, H*0.15);
+  // ondas
+  ctx.strokeStyle = noite ? '#0a304a' : '#2aaac0'; ctx.lineWidth=2; ctx.globalAlpha=0.5;
+  for(let w=0;w<3;w++){
+    ctx.beginPath();
+    for(let x=0;x<=W;x+=6){
+      const y = H*0.55 + Math.sin((x/40)+(ts/600)+w*1.2)*4 + w*5;
+      x===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+
+  // FLORESTA (fundo)
+  drawFloresta(W, H, noite, ts);
+
+  // AREIA
+  const sandGrad = ctx.createLinearGradient(0, H*0.64, 0, H);
+  sandGrad.addColorStop(0, noite ? '#7a5a28':'#e0b84a');
+  sandGrad.addColorStop(1, noite ? '#5a3a18':'#c49438');
+  ctx.fillStyle = sandGrad;
+  ctx.beginPath(); ctx.moveTo(0,H*0.68);
+  ctx.bezierCurveTo(W*0.25,H*0.62, W*0.75,H*0.65, W,H*0.67);
+  ctx.lineTo(W,H); ctx.lineTo(0,H); ctx.closePath(); ctx.fill();
+
+  // PALMEIRAS
+  drawPalmeira(ctx, W*0.08, H*0.74, ts, 0.9);
+  drawPalmeira(ctx, W*0.92, H*0.76, ts, 1.0);
+  if (G.construcoes.abrigo) drawPalmeira(ctx, W*0.5, H*0.75, ts, 0.7);
+
+  // CONSTRUÇÕES
+  drawConstrucoes(W, H, ts);
+
+  // RECURSOS NA ILHA
+  G.recursos.forEach(r => drawRecurso(r, ts));
+
+  // JOJO
+  drawJojo(ts, noite);
+
+  // BARCO (se completo)
+  if (G.barcoPartes.casco && G.barcoPartes.remo && G.barcoPartes.vela) {
+    drawBarco(W, H, ts);
+  }
+
+  // PARTÍCULAS
+  G.particles.forEach(p => {
+    ctx.globalAlpha = p.alpha;
+    ctx.font = '14px serif';
+    ctx.fillText(p.txt, p.x-7, p.y);
+  });
+  ctx.globalAlpha = 1;
+
+  // HORA
+  ctx.fillStyle = noite ? '#7a9aaa' : '#1a3a5a';
+  ctx.font = `${Math.max(9,W*0.022)}px Lato`;
+  ctx.textAlign = 'right';
+  ctx.fillText(`${String(G.hour).padStart(2,'0')}:00`, W-8, 18);
+  ctx.textAlign = 'left';
+}
+
+function drawNuvens(ts, W, H) {
+  ctx.fillStyle = '#ffffff18';
+  [[W*0.2, H*0.1, 40, 15], [W*0.6, H*0.08, 55, 18], [W*0.85, H*0.15, 35, 12]].forEach(([cx,cy,rw,rh],i)=>{
+    const ox = Math.sin(ts/4000+i)*8;
+    ctx.beginPath(); ctx.ellipse(cx+ox, cy, rw, rh, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx+ox-15, cy+5, rw*0.7, rh*0.8, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx+ox+18, cy+4, rw*0.6, rh*0.75, 0, 0, Math.PI*2); ctx.fill();
+  });
+}
+
+function drawFloresta(W, H, noite, ts) {
+  const treeColor1 = noite ? '#0d2a0d' : '#1a5a18';
+  const treeColor2 = noite ? '#1a3a1a' : '#2a7a28';
+  const trunkColor = noite ? '#2a1a0a' : '#5a3a1a';
+  const treeYBase = H*0.60;
+  for (let i=0; i<9; i++) {
+    const tx = (W/(9)) * i + W*0.05;
+    const th = H*0.22 + Math.sin(i*7)*H*0.06;
+    const sw = Math.sin(ts/1200+i*0.8)*0.03;
+    ctx.save(); ctx.translate(tx, treeYBase); ctx.rotate(sw);
+    // tronco
+    ctx.fillStyle=trunkColor; ctx.fillRect(-4, 0, 8, H*0.07);
+    // copa
+  ctx.fillStyle=treeColor1; ctx.beginPath();
+    ctx.moveTo(0,-th); ctx.lineTo(-th*0.4, 0); ctx.lineTo(th*0.4, 0); ctx.closePath(); ctx.fill();
+    ctx.fillStyle=treeColor2; ctx.beginPath();
+    ctx.moveTo(0,-th*1.1); ctx.lineTo(-th*0.3,-th*0.3); ctx.lineTo(th*0.3,-th*0.3); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawPalmeira(ctx, x, y, ts, scale=1) {
+  const sway = Math.sin(ts/1300)*0.06;
+  ctx.save(); ctx.translate(x, y); ctx.scale(scale, scale);
+  // tronco curvado
+  ctx.strokeStyle='#5a3a1a'; ctx.lineWidth=7; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(8,-40, 3+sway*30,-80); ctx.stroke();
+  // folhas
+  const lx = 3+sway*30, ly = -80;
+  [[-1.1],[-.6],[-.1],[.4],[.9],[1.4]].forEach(([a])=>{
+    ctx.strokeStyle='#2a6a1a'; ctx.lineWidth=5; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(lx,ly);
+    ctx.quadraticCurveTo(lx+Math.cos(a)*32+sway*15, ly+Math.sin(a)*22, lx+Math.cos(a)*50+sway*20, ly+Math.sin(a)*38);
+    ctx.stroke();
+    ctx.strokeStyle='#3a8a28'; ctx.lineWidth=2;
+    ctx.stroke();
+  });
+  // coco
+  ctx.fillStyle='#5a3a0a'; ctx.beginPath(); ctx.arc(lx+3,ly+4,5,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function drawConstrucoes(W, H, ts) {
+  const flicker = 0.9 + 0.1*Math.sin(ts/80);
+  if (G.construcoes.acampamento) {
+    ctx.font = `${W*0.07}px serif`; ctx.textAlign='center';
+    ctx.fillText('⛺', W*0.72, H*0.84);
+  }
+  if (G.construcoes.fogueira) {
+    ctx.font = `${W*0.06}px serif`;
+    ctx.globalAlpha = flicker;
+    ctx.fillText('🔥', W*0.82, H*0.86);
+    ctx.globalAlpha = 1;
+  }
+  if (G.construcoes.abrigo) {
+    ctx.font = `${W*0.08}px serif`;
+    ctx.fillText('🏠', W*0.5, H*0.83);
+  }
+  if (G.construcoes.oficina) {
+    ctx.font = `${W*0.06}px serif`;
+    ctx.fillText('🔨', W*0.62, H*0.86);
+  }
+  ctx.textAlign = 'left';
+}
+
+function drawRecurso(r, ts) {
+  const pulse = 1 + 0.06*Math.sin(ts/400+r.id2*10);
+  const s = r.scale * pulse;
+  ctx.save();
+  ctx.translate(r.x, r.y);
+  ctx.scale(s, s);
+  ctx.font = `${Math.max(14, canvas.width*0.055)}px serif`;
+  ctx.textAlign='center';
+  ctx.shadowBlur=10; ctx.shadowColor='#ffffff44';
+  ctx.fillText(r.emoji, 0, 0);
+  // label pequena
+  ctx.shadowBlur=0;
+  ctx.font = `bold ${Math.max(7,canvas.width*0.022)}px Lato`;
+  ctx.fillStyle='#e8c97a'; ctx.fillText(`+${r.qty}`, 0, 14);
+  ctx.restore();
+  ctx.textAlign='left';
+}
+
+function drawJojo(ts, noite) {
+  const j = G.jojo;
+  const W = canvas.width;
+  const sz = Math.max(18, W*0.055);
+  ctx.save();
+  ctx.translate(j.x, j.y);
+  ctx.scale(j.dir, 1);
+// sombra
+  ctx.fillStyle='#00000044'; ctx.beginPath();
+  ctx.ellipse(0, 6, sz*0.6, sz*0.15, 0, 0, Math.PI*2); ctx.fill();
+
+  // pernas (animação)
+  const legSwing = j.walking ? Math.sin(ts/120)*8 : 0;
+  ctx.fillStyle = noite ? '#1a3a6a' : '#2a5aaa';
+  // perna esquerda
+  ctx.save(); ctx.rotate((legSwing)*Math.PI/180);
+  ctx.fillRect(-sz*0.25, sz*0.15, sz*0.22, sz*0.4); ctx.restore();
+  // perna direita
+  ctx.save(); ctx.rotate((-legSwing)*Math.PI/180);
+  ctx.fillRect(sz*0.03, sz*0.15, sz*0.22, sz*0.4); ctx.restore();
+
+  // corpo
+  ctx.fillStyle = noite ? '#3a1a0a' : '#e8734a';
+  ctx.beginPath(); ctx.roundRect(-sz*0.32,-sz*0.1, sz*0.64, sz*0.32, sz*0.08); ctx.fill();
+
+  // braços
+  const armSwing = j.walking ? Math.sin(ts/120)*10 : 0;
+  ctx.fillStyle = noite ? '#4a2a1a' : '#d4643a';
+  ctx.save(); ctx.rotate((-armSwing)*Math.PI/180);
+  ctx.fillRect(-sz*0.55, -sz*0.08, sz*0.22, sz*0.28); ctx.restore();
+  ctx.save(); ctx.rotate((armSwing)*Math.PI/180);
+  ctx.fillRect(sz*0.33, -sz*0.08, sz*0.22, sz*0.28); ctx.restore();
+
+  // cabeça
+  ctx.fillStyle = '#f0c88a';
+  ctx.beginPath(); ctx.arc(0, -sz*0.24, sz*0.28, 0, Math.PI*2); ctx.fill();
+
+  // olhos
+  ctx.fillStyle='#2a1a0a';
+  ctx.beginPath(); ctx.arc(sz*0.08, -sz*0.27, sz*0.055, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-sz*0.08, -sz*0.27, sz*0.055, 0, Math.PI*2); ctx.fill();
+
+  // boca (sorri se hp > 50, triste se não)
+  ctx.strokeStyle='#2a1a0a'; ctx.lineWidth=1.5; ctx.lineCap='round';
+  ctx.beginPath();
+  if (G.hp > 50) { ctx.arc(0,-sz*0.22, sz*0.1, 0.2, Math.PI-0.2); }
+  else { ctx.arc(0,-sz*0.14, sz*0.1, Math.PI+0.2, -0.2); }
+  ctx.stroke();
+
+  // chapéu de náufrago
+  ctx.fillStyle='#8B5E3C';
+  ctx.fillRect(-sz*0.3, -sz*0.52, sz*0.6, sz*0.06);
+  ctx.beginPath(); ctx.ellipse(0,-sz*0.4, sz*0.22, sz*0.14, 0, 0, Math.PI*2); ctx.fill();
+
+  // ferramenta na mão (se tiver)
+  if (G.ferramentas.machado) {
+    ctx.font=`${sz*0.55}px serif`; ctx.textAlign='center';
+    ctx.fillText('🪓', sz*0.6, -sz*0.05);
+  } else if (G.ferramentas.arco) {
+    ctx.font=`${sz*0.5}px serif`; ctx.fillText('🏹', sz*0.6, -sz*0.05);
+  }
+
+  // indicador HP baixo
+  if (G.hp < 30) {
+    ctx.fillStyle='#ff4444'; ctx.font=`${sz*0.4}px serif`;
+    ctx.fillText('😵', 0, -sz*0.65);
+  }
+
+  ctx.restore();
+  ctx.textAlign='left';
+
+  // nome
+  ctx.fillStyle='#e8c97a'; ctx.font=`bold ${Math.max(8,W*0.025)}px Lato`;
+  ctx.textAlign='center';
+  ctx.fillText('JOJO', j.x, j.y - sz*0.85);
+  ctx.textAlign='left';
+}
+
+function drawBarco(W, H, ts) {
+  const bx = W*0.5, by = H*0.56;
+  const bob = Math.sin(ts/600)*3;
+  ctx.save(); ctx.translate(bx, by+bob);
+  // casco
+  ctx.fillStyle='#8B5E3C'; ctx.strokeStyle='#5a3a1a'; ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(-35,0); ctx.quadraticCurveTo(0,20,35,0);
+  ctx.lineTo(28,-12); ctx.lineTo(-28,-12); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // mastro
+  ctx.fillStyle='#5a3a1a'; ctx.fillRect(-2,-45,4,45);
+  // vela
+  ctx.fillStyle='#f0ead2AA';
+  ctx.beginPath(); ctx.moveTo(0,-42); ctx.lineTo(30,0); ctx.lineTo(0,0); ctx.closePath(); ctx.fill();
+  // remo
+  ctx.strokeStyle='#8B5E3C'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(-35,0); ctx.lineTo(-55,12); ctx.stroke();
+  ctx.fillStyle='#6a4a2a'; ctx.fillRect(-58,8,10,6);
+  // emoji festivo
+  ctx.font='16px serif'; ctx.fillText('⛵',-18,-50);
+  ctx.restore();
+}
+
+// ══════════════════════════════════════════════
+//  INPUT — CLIQUE NO CANVAS
+// ══════════════════════════════════════════════
+canvas.addEventListener('click', e => {
+  if (!G) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const my = (e.clientY - rect.top)  * (canvas.height / rect.height);
+
+  // checar recurso mais próximo do clique
+  let closest = null, minD = 36;
+  G.recursos.forEach(r => {
+    const d = Math.sqrt((r.x-mx)**2 + (r.y-my)**2);
+    if (d < minD) { minD=d; closest=r; }
+  });
+  if (closest) {
+    G._targetRes = closest.id2;
+    G.jojo.wx = closest.x;
+    G.jojo.wy = closest.y;
+    addLog(`Jojo vai coletar ${closest.emoji} ${closest.label}...`, 'li');
+  }
+});
+
+// touch
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  canvas.dispatchEvent(new MouseEvent('click', {
+    clientX: t.clientX, clientY: t.clientY
+  }));
+}, {passive:false});
+// ══════════════════════════════════════════════
+//  AÇÕES DO PAINEL
+// ══════════════════════════════════════════════
+const ACOES_DEF = [
+  { id:'comer',     icon:'🍽️',  nome:'Comer',        desc:'Consome comida',       custo:{fruta:3}, fn: ()=>{
+      if(G.fruta<3){notify('Sem frutas!');return;}
+      G.fruta-=3; G.hp=Math.min(100,G.hp+25); G.food=Math.min(100,G.food+25);
+      addLog('🍽️ Jojo comeu! +25 HP +fome','ls'); updateHUD(); renderRecursos();
+  }},
+  { id:'beber',     icon:'🥤',  nome:'Beber Água',   desc:'Consome água',         custo:{agua:3},  fn: ()=>{
+      if(G.agua<3){notify('Sem água!');return;}
+      G.agua-=3; G.hp=Math.min(100,G.hp+20); G.water=Math.min(100,G.water+20);
+      addLog('💧 Jojo bebeu! +20 HP +sede','ls'); updateHUD(); renderRecursos();
+  }},
+  { id:'pescar',    icon:'🎣',  nome:'Pescar',       desc:'Busca peixe na praia', custo:{},        fn: ()=>{
+      const q=rng(2,5); G.peixe+=q; G.fruta+=q;
+      addLog(`🐟 Jojo pescou ${q} peixes!`,'ls'); renderRecursos();
+  }},
+  { id:'descansar', icon:'😴',  nome:'Descansar',    desc:'Recupera +15 HP',      custo:{},        fn: ()=>{
+      G.hp=Math.min(100,G.hp+15); G.food=Math.max(0,G.food-5); G.water=Math.max(0,G.water-5);
+      G.hour+=4; if(G.hour>=24){G.hour-=18;G.day++;}
+      addLog('😴 Jojo descansou. +15 HP','ls'); updateHUD();
+  }},
+];
+
+function renderAcoes() {
+  const div = document.getElementById('ag');
+  if (!div) return;
+  div.innerHTML='';
+  ACOES_DEF.forEach(a=>{
+    const ok = !a.custo || Object.entries(a.custo).every(([k,v])=>G[k]>=v);
+    const btn=document.createElement('button');
+    btn.className='abtn'+(ok?'':' locked');
+    const costTxt = a.custo && Object.keys(a.custo).length
+      ? Object.entries(a.custo).map(([k,v])=>`-${v}${k}`).join(' ') : '';
+    btn.innerHTML=`${costTxt?`<span class="acost">${costTxt}</span>`:''}
+      <span class="ai">${a.icon}</span>${a.nome}<span class="ac">${a.desc}</span>`;
+    if(ok) btn.onclick = () => { a.fn(); renderAcoes(); };
+    div.appendChild(btn);
+  });
+}
+
+// ══════════════════════════════════════════════
+//  CONSTRUÇÃO
+// ══════════════════════════════════════════════
+const CONSTR = [
+  { id:'acampamento', icon:'⛺', nome:'Acampamento', req:{madeira:5,fibra:3},    efeito:'Base inicial na praia' },
+  { id:'fogueira',    icon:'🔥', nome:'Fogueira',    req:{madeira:8,pedra:4},    efeito:'Afasta animais noturnos' },
+  { id:'abrigo',      icon:'🏠', nome:'Abrigo',      req:{madeira:20,pedra:10,fibra:8}, efeito:'Regenera HP passivamente' },
+  { id:'oficina',     icon:'🔨', nome:'Oficina',      req:{madeira:15,pedra:8},  efeito:'Habilita fabricação de ferramentas' },
+];
+const FERRM = [
+  { id:'machado', icon:'🪓', nome:'Machado', req:{madeira:3,pedra:3}, efeito:'Dobra coleta de madeira' },
+  { id:'picareta',icon:'⛏️', nome:'Picareta',req:{madeira:3,pedra:4}, efeito:'Dobra coleta de pedra' },
+  { id:'arco',    icon:'🏹', nome:'Arco',    req:{madeira:5,fibra:4,osso:2}, efeito:'Dobra coleta de ossos' },
+];
+
+function renderBuilds() {
+  const div = document.getElementById('blist');
+  if (!div) return;
+  div.innerHTML = '<div style="font-size:.75rem;color:#8a9;margin-bottom:6px">🏗️ Construções</div>';
+  CONSTR.forEach(b=>{
+    const built=G.construcoes[b.id];
+    const canBuild = Object.entries(b.req).every(([k,v])=>G[k]>=v);
+    const reqStr = Object.entries(b.req).map(([k,v])=>`${v} ${k}`).join(', ');
+    const el=document.createElement('div'); el.className='bitem';
+    el.innerHTML=`<div class="bi">${b.icon}</div>
+      <div class="bd"><div class="bn">${b.nome}</div>
+      <div class="bb">${b.efeito}</div>
+      ${built?'<div class="bbuilt">✅ Construído</div>':`<div class="bb">Req: ${reqStr}</div>`}
+      </div>
+      <button class="btn-b" ${built?'disabled':''} onclick="doBuild('${b.id}')">${built?'✅':'Construir'}</button>`;
+    div.appendChild(el);
+  });
+  const sep=document.createElement('div'); sep.innerHTML='<div style="font-size:.75rem;color:#8a9;margin:8px 0 6px">⚒️ Ferramentas</div>';
+  div.appendChild(sep);
+  FERRM.forEach(f=>{
+    const built=G.ferramentas[f.id];
+    const canBuild=G.construcoes.oficina&&Object.entries(f.req).every(([k,v])=>G[k]>=v);
+    const reqStr=Object.entries(f.req).map(([k,v])=>`${v} ${k}`).join(', ');
+    const el=document.createElement('div'); el.className='bitem';
+    el.innerHTML=`<div class="bi">${f.icon}</div>
+      <div class="bd"><div class="bn">${f.nome}</div>
+      <div class="bb">${f.efeito}</div>
+      ${built?'<div class="bbuilt">✅ Fabricada</div>':`<div class="bb">Oficina + ${reqStr}</div>`}
+      </div>
+      <button class="btn-b" ${built?'disabled':''} onclick="doFabricar('${f.id}')">${built?'✅':'Fabricar'}</button>`;
+    div.appendChild(el);
+  });
+}
+
+function doBuild(id) {
+  const b = CONSTR.find(x=>x.id===id);
+  if(!b||G.construcoes[id]) return;
+  for(const[k,v]of Object.entries(b.req)){if(G[k]<v){notify(`❌ Faltam recursos! (${reqStr(b.req)})`);return;}}
+  for(const[k,v]of Object.entries(b.req)) G[k]-=v;
+  G.construcoes[id]=true;
+  addLog(`🏗️ ${b.nome} construído!`,'ls');
+  renderBottom();
+}
+function doFabricar(id) {
+  const f=FERRM.find(x=>x.id===id);
+  if(!f||G.ferramentas[id]) return;
+  if(!G.construcoes.oficina){notify('🔨 Construa uma Oficina primeiro!');return;}
+  for(const[k,v]of Object.entries(f.req)){if(G[k]<v){notify(`❌ Faltam recursos!`);return;}}
+  for(const[k,v]of Object.entries(f.req)) G[k]-=v;
+  G.ferramentas[id]=true;
+  addLog(`⚒️ ${f.nome} fabricada!`,'ls');
+  renderBottom();
+// ══════════════════════════════════════════════
+//  BARCO — OBJETIVO FINAL
+// ══════════════════════════════════════════════
+const BARCO_PARTES = [
+  { id:'casco', icon:'🛖', nome:'Casco do Barco',  req:{madeira:25,fibra:10}, desc:'Estrutura principal' },
+  { id:'remo',  icon:'🚣', nome:'Remos',           req:{madeira:8, osso:4},   desc:'Para navegar' },
+  { id:'vela',  icon:'🏳️', nome:'Vela',            req:{fibra:15, madeira:5}, desc:'Para usar o vento' },
+];
+
+function renderBoat() {
+  const div=document.getElementById('boat-list');
+  if(!div) return;
+  div.innerHTML='<div style="font-size:.75rem;color:#e8c97a;margin-bottom:8px">⛵ OBJETIVO: Construa o barco e escape!</div>';
+  const all=G.construcoes.abrigo;
+  if(!all){
+    const warn=document.createElement('div');
+    warn.className='bitem'; warn.style.borderColor='#aa662233';
+    warn.innerHTML='<div class="bi">🔒</div><div class="bd"><div class="bn" style="color:#aa8">Bloqueado</div><div class="bb">Construa o Abrigo primeiro para desbloquear o estaleiro.</div></div>';
+    div.appendChild(warn); return;
+  }
+  BARCO_PARTES.forEach(p=>{
+    const built=G.barcoPartes[p.id];
+    const reqStr=Object.entries(p.req).map(([k,v])=>`${v} ${k}`).join(', ');
+    const el=document.createElement('div'); el.className='bitem boat-item';
+    el.innerHTML=`<div class="bi">${p.icon}</div>
+      <div class="bd"><div class="bn">${p.nome}</div>
+      <div class="bb">${p.desc} — Req: ${reqStr}</div>
+      ${built?'<div class="bbuilt">✅ Pronto</div>':''}
+      </div>
+      <button class="btn-b" ${built?'disabled':''} onclick="doBuildBarco('${p.id}')">${built?'✅':'Construir'}</button>`;
+    div.appendChild(el);
+  });
+  const completo=BARCO_PARTES.every(p=>G.barcoPartes[p.id]);
+  if(completo){
+    const btn=document.createElement('button');
+    btn.className='btn-b'; btn.style.cssText='width:100%;margin-top:8px;padding:12px;font-size:.85rem;background:#1a4a8a;border-color:#3a7aaa;';
+    btn.innerHTML='⛵ PARTIR DA ILHA!';
+    btn.onclick=vitoria;
+    div.appendChild(btn);
+  }
+}
+
+function doBuildBarco(id){
+  const p=BARCO_PARTES.find(x=>x.id===id);
+  if(!p||G.barcoPartes[id]) return;
+  if(!G.construcoes.abrigo){notify('🏠 Construa o Abrigo primeiro!');return;}
+  for(const[k,v]of Object.entries(p.req)){if(G[k]<v){notify(`❌ Faltam: ${Object.entries(p.req).map(([k,v])=>`${v} ${k}`).join(', ')}`);return;}}
+  for(const[k,v]of Object.entries(p.req)) G[k]-=v;
+  G.barcoPartes[id]=true;
+  addLog(`⛵ ${p.nome} do barco construído!`,'le');
+  const completo=BARCO_PARTES.every(p=>G.barcoPartes[p.id]);
+  if(completo) addLog('🎉 BARCO COMPLETO! Vá em Barco → Partir!','le');
+  renderBottom();
+}
+
+// ══════════════════════════════════════════════
+//  RENDER PAINEL
+// ══════════════════════════════════════════════
+const RES_KEYS = [
+  {k:'madeira',e:'🪵',n:'Madeira'},{k:'pedra',e:'🪨',n:'Pedra'},{k:'fruta',e:'🍌',n:'Fruta'},
+  {k:'agua',e:'💧',n:'Água'},{k:'fibra',e:'🌿',n:'Fibra'},{k:'osso',e:'🦴',n:'Osso'},
+];
+function renderRecursos(){
+  const g=document.getElementById('rq-grid'); if(!g)return;
+  g.innerHTML='';
+  RES_KEYS.forEach(r=>{
+    g.innerHTML+=`<div class="rq-item"><div class="ri">${r.e}</div><div class="rn">${r.n}</div><div class="rv">${G[r.k]||0}</div></div>`;
+  });
+}
+function renderBottom(){ renderRecursos(); renderAcoes(); renderBuilds(); renderBoat(); updateHUD(); }
+
+function updateHUD(){
+  document.getElementById('bhp').style.width=G.hp+'%';
+  document.getElementById('bfood').style.width=G.food+'%';
+  document.getElementById('bwater').style.width=G.water+'%';
+  document.getElementById('vhp').textContent=G.hp;
+  document.getElementById('vfood').textContent=G.food;
+  document.getElementById('vwater').textContent=G.water;
+  document.getElementById('vday').textContent=G.day;
+  // cor da barra HP
+  const c = G.hp>60?'#e74c3c':G.hp>30?'#e67e22':'#ff2020';
+  document.getElementById('bhp').style.background=`linear-gradient(90deg,${c},#ff6b6b)`;
+}
+
+function openTab(id){
+  document.querySelectorAll('.tpanel').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.tbtn').forEach(b=>b.classList.remove('on'));
+  document.getElementById('panel-'+id).classList.add('on');
+  document.getElementById('tab-'+id).classList.add('on');
+  if(id==='construir') renderBuilds();
+  if(id==='barco') renderBoat();
+  if(id==='recursos') renderRecursos();
+  if(id==='acoes') renderAcoes();
+}
+
+// ══════════════════════════════════════════════
+//  FIM DE JOGO
+// ══════════════════════════════════════════════
+function gameover(){
+  clearInterval(ticker);
+  document.getElementById('mt').innerHTML='JOJO<br>MORREU';
+  document.getElementById('mm').textContent=`O Jojo sobreviveu por ${G.day} dias. A ilha foi mais forte desta vez.`;
+  document.getElementById('modal').classList.add('show');
+}
+function vitoria(){
+  clearInterval(ticker);
+  document.getElementById('mt').innerHTML='⛵ ESCAPED!';
+  document.getElementById('mm').textContent=`O Jojo escapou da ilha no Dia ${G.day}! Um verdadeiro sobrevivente!`;
+  document.getElementById('modal').classList.add('show');
+}
+
+// ══════════════════════════════════════════════
+//  UTIL
+// ══════════════════════════════════════════════
+function rng(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+function reqStr(req){return Object.entries(req).map(([k,v])=>`${v} ${k}`).join(', ');}
+function addLog(t,cls=''){
+  const d=document.getElementById('log');
+  const el=document.createElement('div'); el.className='ll '+(cls||'');
+  el.textContent=t; d.appendChild(el); d.scrollTop=d.scrollHeight;
+  if(d.children.length>60) d.removeChild(d.children[0]);
+}
+function notify(t){
+  const e=document.getElementById('notif'); e.textContent=t; e.classList.add('show');
+  clearTimeout(notifTmr); notifTmr=setTimeout(()=>e.classList.remove('show'),2400);
+}
+</script>
+</body>
+</html>                                        }
+    
